@@ -8,7 +8,6 @@ import { session, createSdk } from "@descope/nextjs-sdk/server";
 // `userId` is caller-supplied (not derived from the session) because this is invoked from the family
 // list to edit ANY member's details, not just the caller's own - same trust boundary as the real
 // impersonate route, which also lets the caller name a target family member.
-const PROJECT = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID!;
 const MGMT_KEY = process.env.DESCOPE_MANAGEMENT_KEY!;
 
 type UserFamilyEntry = {
@@ -82,12 +81,12 @@ export async function POST(req: Request) {
         throw new Error(`User is not a member of family ${body.familyId}`);
       }
 
-      // Double colon, not single - see app/lib/mgmtFamily.ts for why (avoids the server's JWT-vs-
-      // access-key dot-sniffing ambiguity for the raw httpClient path).
+      // `token` is the raw key only - see app/lib/mgmtFamily.ts for why (the SDK already prepends
+      // the project ID; doing it again here misroutes the request past the ReBAC permission check).
       const res = await sdk.httpClient.patch(
         "/v1/mgmt/user/patch",
         { loginId: body.userId, familyAssociations },
-        { token: `${PROJECT}::${MGMT_KEY}` }
+        { token: MGMT_KEY }
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
