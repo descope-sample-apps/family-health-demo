@@ -82,10 +82,12 @@ export async function POST(req: Request) {
         throw new Error(`User is not a member of family ${body.familyId}`);
       }
 
+      // Double colon, not single - see app/lib/mgmtFamily.ts for why (avoids the server's JWT-vs-
+      // access-key dot-sniffing ambiguity for the raw httpClient path).
       const res = await sdk.httpClient.patch(
         "/v1/mgmt/user/patch",
         { loginId: body.userId, familyAssociations },
-        { token: `${PROJECT}:${MGMT_KEY}` }
+        { token: `${PROJECT}::${MGMT_KEY}` }
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

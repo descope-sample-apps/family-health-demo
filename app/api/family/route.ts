@@ -60,11 +60,23 @@ export async function GET() {
     }
 
     // Drives the family selector - every family the caller belongs to, so they can switch between
-    // them, shown by name rather than the raw ID.
-    const familiesRes = (await mgmtFamilyCall("/v1/mgmt/family/search", {
-      familyIds: myFamilyIds,
-    })) as { families?: { id: string; name: string }[] };
-    const families = (familiesRes.families ?? []).map((f) => ({ familyId: f.id, name: f.name }));
+    // them, shown by name rather than the raw ID. SearchFamilies needs its own scoped permission on
+    // the management key (distinct from the user-search/impersonate calls above) - fall back to
+    // showing the ID rather than 500ing the whole page if that permission hasn't been granted yet.
+    let families = myFamilyIds.map((id) => ({ familyId: id, name: id }));
+    try {
+      const familiesRes = (await mgmtFamilyCall("/v1/mgmt/family/search", {
+        familyIds: myFamilyIds,
+      })) as { families?: { id: string; name: string }[] };
+      if (familiesRes.families?.length) {
+        families = familiesRes.families.map((f) => ({ familyId: f.id, name: f.name || f.id }));
+      }
+    } catch (e) {
+      console.error(
+        "[api/family] family search failed, falling back to raw family IDs - check the management key has the family-read permission scope:",
+        e
+      );
+    }
 
     // 2) Search all users across the caller's families in one shot, using the search API's familyIds
     //    filter - server-side, instead of pulling every project user and filtering here. familyIds
