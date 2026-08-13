@@ -1,7 +1,7 @@
-import { getRefreshToken } from "@descope/nextjs-sdk/client";
-
 // Impersonation re-mints a session for a different user, so the route returns the refresh JWT and we
 // adopt it client-side via sdk.refresh(). Same mechanism as descope-sample-apps/family-account-demo.
+// stopImpersonation doesn't need to send a refresh token itself - it lives in an HttpOnly cookie the
+// server route reads directly (see app/api/family/impersonate/stop/route.ts); client JS can't read it.
 type HttpClientConfig = { token?: string };
 type Sdk = {
   httpClient: {
@@ -33,9 +33,7 @@ export function familyApi(sdk: Sdk) {
       await sdk.refresh(refreshJwt);
     },
     stopImpersonation: async () => {
-      const { refreshJwt } = await apiPost("/api/family/impersonate/stop", {
-        refreshJwt: getRefreshToken(),
-      });
+      const { refreshJwt } = await apiPost("/api/family/impersonate/stop", {});
       // adopt the acting user's restored session
       await sdk.refresh(refreshJwt);
     },
