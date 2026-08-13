@@ -12,17 +12,21 @@ const input =
 
 export default function EditProfileModal({
   member,
+  familyId,
   onClose,
   onSaved,
 }: {
   member: FamilyMember;
+  familyId: string; // which of the member's families we're editing under (parentType is per-family)
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState(member.name || "");
   const [picture, setPicture] = useState(member.picture || "");
   const [phone, setPhone] = useState(member.phone || "");
-  const [parentType, setParentType] = useState(member.parentType || "");
+  const [parentType, setParentType] = useState(
+    member.userFamilies.find((f) => f.familyId === familyId)?.parentType || ""
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,7 +36,7 @@ export default function EditProfileModal({
     setBusy(true);
     try {
       // Real Management API calls - see app/api/profile/route.ts.
-      await updateProfile({ userId: member.userId, name, picture, phone, parentType });
+      await updateProfile({ userId: member.userId, name, picture, phone, familyId, parentType });
       onSaved();
     } catch (e) {
       setError((e as Error).message);

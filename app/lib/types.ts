@@ -1,5 +1,13 @@
 // Shared shapes between server route handlers and client components.
 
+// A member's per-family membership - roleNames and parentType (a family-scoped custom attribute) are
+// specific to a given family, not the user overall, since the same user can belong to more than one.
+export type MemberFamily = {
+  familyId: string;
+  roleNames: string[];
+  parentType?: string; // e.g. "Mother", "Father", "Guardian"
+};
+
 export type FamilyMember = {
   userId: string;
   loginId?: string;
@@ -8,14 +16,14 @@ export type FamilyMember = {
   email?: string;
   phone?: string;
   picture?: string;
-  parentType?: string; // family-scoped custom attribute (e.g. "Mother", "Father", "Guardian")
   dependent?: boolean;
   familyIds: string[];
+  userFamilies: MemberFamily[];
 };
 
 export type Family = {
   familyId: string;
-  roleNames: string[];
+  name: string;
 };
 
 export type Appointment = {

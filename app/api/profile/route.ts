@@ -1,17 +1,23 @@
 import { session, createSdk } from "@descope/nextjs-sdk/server";
 
-// Real Management API calls (name/picture/phone are long-standing, general-purpose user-update
-// endpoints - not family-specific). `createSdk()` auto-wires DESCOPE_MANAGEMENT_KEY, so these are
-// authenticated the same way as the family/impersonate calls in app/api/family, just via typed SDK
-// methods instead of a raw httpClient.post (those methods predate the family feature).
-//
-// parentType is a family-scoped custom attribute (attribute definition created directly in the
-// Descope project). There's no dedicated family-scoped-attribute update endpoint for an existing user
-// yet, so it's set the same way any custom attribute is: PatchUser with customAttributes.
+// Real Management API calls throughout. name/picture/phone are long-standing, general-purpose
+// user-update endpoints (not family-specific) - not in the reference app since it never had an edit
+// feature. parentType is a family-scoped custom attribute (attribute definition created directly on
+// the Descope project), set via PatchUser's familyAssociations - see descope/backend#2161.
 //
 // `userId` is caller-supplied (not derived from the session) because this is invoked from the family
 // list to edit ANY member's details, not just the caller's own - same trust boundary as the real
 // impersonate route, which also lets the caller name a target family member.
+const PROJECT = process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID!;
+const MGMT_KEY = process.env.DESCOPE_MANAGEMENT_KEY!;
+
+type UserFamilyEntry = {
+  familyId: string;
+  roleNames?: string[];
+  familyScopedAttributes?: Record<string, unknown>;
+};
+type UserWithFamilies = { userId: string; userFamilies?: UserFamilyEntry[] };
+
 export async function POST(req: Request) {
   const current = await session();
   if (!current) {
@@ -22,6 +28,7 @@ export async function POST(req: Request) {
     name?: string;
     picture?: string;
     phone?: string;
+    familyId?: string; // which family parentType applies to (a member can be in more than one)
     parentType?: string;
   };
   if (!body.userId) {
@@ -43,10 +50,48 @@ export async function POST(req: Request) {
       if (!res.ok) throw new Error(res.error?.errorMessage || "Failed to update phone");
     }
     if (body.parentType !== undefined) {
-      const res = await sdk.management.user.patch(body.userId, {
-        customAttributes: { parentType: body.parentType },
-      });
-      if (!res.ok) throw new Error(res.error?.errorMessage || "Failed to update parent type");
+      if (!body.familyId) {
+        throw new Error("familyId is required to update parentType");
+      }
+
+      // PatchUser's familyAssociations replaces the user's FULL family list, and - per family entry -
+      // fully replaces roleNames too (only familyScopedAttributes has preserve-if-not-mentioned
+      // semantics; see descope/backend#2161's applyFamilyChanges). So every family the member belongs
+      // to, and that family's current roleNames, must be resent unchanged, or we'd silently drop them
+      // from other families / strip their family roles just by editing one attribute. Fetch fresh
+      // rather than trusting client-sent data, since it's driving a destructive-if-wrong write.
+      const lookup = await sdk.management.user.search({ userIds: [body.userId], limit: 1 });
+      if (!lookup.ok) throw new Error(lookup.error?.errorMessage || "Failed to load user");
+      const target = ((lookup.data?.users ?? []) as UserWithFamilies[])[0];
+      const currentFamilies = target?.userFamilies ?? [];
+
+      const familyAssociations = currentFamilies.map((f) => ({
+        familyId: f.familyId,
+        roleNames: f.roleNames ?? [],
+        // Omit familyScopedAttributes entirely for families we're not touching, so their attributes
+        // are preserved server-side rather than overwritten with what we happen to have on hand here.
+        ...(f.familyId === body.familyId
+          ? {
+              familyScopedAttributes: { ...(f.familyScopedAttributes ?? {}), parentType: body.parentType },
+            }
+          : {}),
+      }));
+      if (!familyAssociations.some((f) => f.familyId === body.familyId)) {
+        // Defensive: shouldn't happen from the UI (you can only edit a member from within a family
+        // they're already in), but don't silently no-op if it does.
+        throw new Error(`User is not a member of family ${body.familyId}`);
+      }
+
+      const res = await sdk.httpClient.patch(
+        "/v1/mgmt/user/patch",
+        { loginId: body.userId, familyAssociations },
+        { token: `${PROJECT}:${MGMT_KEY}` }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = data as { errorMessage?: string; message?: string };
+        throw new Error(err?.errorMessage || err?.message || `HTTP ${res.status}`);
+      }
     }
   } catch (e) {
     console.error("[api/profile] update failed:", e);

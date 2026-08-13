@@ -8,6 +8,7 @@ export type UpdateProfileInput = {
   name?: string;
   picture?: string;
   phone?: string;
+  familyId?: string; // which family parentType applies to
   parentType?: string;
 };
 

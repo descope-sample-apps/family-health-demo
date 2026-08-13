@@ -95,8 +95,7 @@ export default function FamilyPanel({
             >
               {families.map((f) => (
                 <option key={f.familyId} value={f.familyId}>
-                  {f.familyId}
-                  {f.roleNames.length > 0 ? ` (${f.roleNames.join(", ")})` : ""}
+                  {f.name}
                 </option>
               ))}
             </select>
@@ -118,6 +117,7 @@ export default function FamilyPanel({
           <ul className="flex flex-col gap-2">
             {visibleMembers.map((m) => {
               const isSelf = m.userId === selfUserId;
+              const parentType = m.userFamilies.find((f) => f.familyId === selectedFamilyId)?.parentType;
               return (
                 <li
                   key={m.userId}
@@ -139,9 +139,9 @@ export default function FamilyPanel({
                           Dependent
                         </span>
                       )}
-                      {m.parentType && (
+                      {parentType && (
                         <span className="ml-2 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
-                          {m.parentType}
+                          {parentType}
                         </span>
                       )}
                       {m.phone && (
@@ -177,6 +177,7 @@ export default function FamilyPanel({
       {editing && (
         <EditProfileModal
           member={editing}
+          familyId={selectedFamilyId}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);

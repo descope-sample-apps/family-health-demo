@@ -1,7 +1,9 @@
 import { session, createSdk } from "@descope/nextjs-sdk/server";
+import { mgmtFamilyCall } from "../../lib/mgmtFamily";
 
-// @descope/node-sdk's UserResponse type hasn't been regenerated yet for the family
-// feature, so userFamilies/families/dependent are missing even though the backend returns them.
+// @descope/node-sdk's UserResponse type hasn't been regenerated yet for the family feature, so
+// userFamilies/families/dependent - and, per descope/backend#2161, each family entry's
+// familyScopedAttributes - are missing even though the backend returns them.
 type UserWithFamilies = {
   userId: string;
   loginIds?: string[];
@@ -10,9 +12,13 @@ type UserWithFamilies = {
   phone?: string;
   picture?: string;
   dependent?: boolean;
-  userFamilies?: { familyId: string; roleNames?: string[]; permissions?: string[] }[];
+  userFamilies?: {
+    familyId: string;
+    roleNames?: string[];
+    permissions?: string[];
+    familyScopedAttributes?: Record<string, unknown>;
+  }[];
   families?: string[];
-  customAttributes?: Record<string, unknown>;
 };
 
 export async function GET() {
@@ -47,16 +53,18 @@ export async function GET() {
     const me = ((meRes.data?.users ?? []) as UserWithFamilies[])[0];
     const myUserFamilies = me?.userFamilies ?? [];
     const myFamilyIds = myUserFamilies.map((f) => f.familyId);
-    // Drives the family selector - every family the caller belongs to, so they can switch between them.
-    const families = myUserFamilies.map((f) => ({
-      familyId: f.familyId,
-      roleNames: f.roleNames ?? [],
-    }));
 
     // Not in any family -> nothing to search. (An empty familyIds filter would match ALL users.)
     if (myFamilyIds.length === 0) {
       return Response.json({ members: [], families: [] });
     }
+
+    // Drives the family selector - every family the caller belongs to, so they can switch between
+    // them, shown by name rather than the raw ID.
+    const familiesRes = (await mgmtFamilyCall("/v1/mgmt/family/search", {
+      familyIds: myFamilyIds,
+    })) as { families?: { id: string; name: string }[] };
+    const families = (familiesRes.families ?? []).map((f) => ({ familyId: f.id, name: f.name }));
 
     // 2) Search all users across the caller's families in one shot, using the search API's familyIds
     //    filter - server-side, instead of pulling every project user and filtering here. familyIds
@@ -75,9 +83,10 @@ export async function GET() {
     }
     const users = (res.data?.users ?? []) as UserWithFamilies[];
 
-    // name/picture/phone/parentType come straight off the real Descope user record - edits in
-    // app/api/profile write through to the same record via the Management API, so no overlay is
-    // needed here. parentType is a family-scoped custom attribute, surfaced via customAttributes.
+    // name/picture/phone come straight off the real Descope user record - edits in app/api/profile
+    // write through to the same record via the Management API, so no overlay is needed here.
+    // parentType is per-family (a family-scoped custom attribute), so it lives on userFamilies rather
+    // than as a flat field - the same member can have a different parentType in each family.
     const members = users.map((u) => ({
       userId: u.userId,
       loginId: u.loginIds?.[0],
@@ -86,10 +95,16 @@ export async function GET() {
       email: u.email,
       phone: u.phone,
       picture: u.picture,
-      parentType:
-        typeof u.customAttributes?.parentType === "string" ? u.customAttributes.parentType : undefined,
       dependent: u.dependent,
       familyIds: u.userFamilies?.map((f) => f.familyId) ?? u.families ?? [],
+      userFamilies: (u.userFamilies ?? []).map((f) => ({
+        familyId: f.familyId,
+        roleNames: f.roleNames ?? [],
+        parentType:
+          typeof f.familyScopedAttributes?.parentType === "string"
+            ? f.familyScopedAttributes.parentType
+            : undefined,
+      })),
     }));
 
     return Response.json({ members, families });
