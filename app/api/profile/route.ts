@@ -1,9 +1,9 @@
 import { session, createSdk } from "@descope/nextjs-sdk/server";
 
-// Real Management API calls throughout. name/picture/phone are long-standing, general-purpose
-// user-update endpoints (not family-specific) - not in the reference app since it never had an edit
-// feature. parentType is a family-scoped custom attribute (attribute definition created directly on
-// the Descope project), set via PatchUser's familyAssociations - see descope/backend#2161.
+// Real Management API calls throughout. name/phone are long-standing, general-purpose user-update
+// endpoints (not family-specific) - not in the reference app since it never had an edit feature.
+// parentType is a family-scoped custom attribute (attribute definition created directly on the
+// Descope project), set via PatchUser's familyAssociations - see descope/backend#2161.
 //
 // `userId` is caller-supplied (not derived from the session) because this is invoked from the family
 // list to edit ANY member's details, not just the caller's own - same trust boundary as the real
@@ -25,7 +25,6 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     userId?: string;
     name?: string;
-    picture?: string;
     phone?: string;
     familyId?: string; // which family parentType applies to (a member can be in more than one)
     parentType?: string;
@@ -39,10 +38,6 @@ export async function POST(req: Request) {
     if (body.name !== undefined) {
       const res = await sdk.management.user.updateDisplayName(body.userId, body.name);
       if (!res.ok) throw new Error(res.error?.errorMessage || "Failed to update name");
-    }
-    if (body.picture !== undefined) {
-      const res = await sdk.management.user.updatePicture(body.userId, body.picture);
-      if (!res.ok) throw new Error(res.error?.errorMessage || "Failed to update picture");
     }
     if (body.phone !== undefined) {
       const res = await sdk.management.user.updatePhone(body.userId, body.phone, false);
@@ -102,7 +97,6 @@ export async function POST(req: Request) {
   return Response.json({
     userId: body.userId,
     name: body.name,
-    picture: body.picture,
     phone: body.phone,
     parentType: body.parentType,
   });

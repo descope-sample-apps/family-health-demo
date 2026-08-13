@@ -1,12 +1,11 @@
 import type { FamilyMember } from "./types";
 
 // Talks to this app's own /api/profile route, which makes REAL Management API calls
-// (updateDisplayName / updatePicture / updatePhone) - see app/api/profile/route.ts.
+// (updateDisplayName / updatePhone) - see app/api/profile/route.ts.
 
 export type UpdateProfileInput = {
   userId: string;
   name?: string;
-  picture?: string;
   phone?: string;
   familyId?: string; // which family parentType applies to
   parentType?: string;

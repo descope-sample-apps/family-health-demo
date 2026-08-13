@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDescope } from "@descope/nextjs-sdk/client";
+import { useDescope, useSession } from "@descope/nextjs-sdk/client";
 import Avatar from "./Avatar";
 import EditProfileModal from "./EditProfileModal";
-import { familyApi } from "../lib/family";
+import { familyApi, decodeClaims } from "../lib/family";
+import { resolveAvatar } from "../lib/avatars";
 import type { Family, FamilyMember } from "../lib/types";
 
 const btn =
@@ -20,6 +21,9 @@ export default function FamilyPanel({
   onClose: () => void;
 }) {
   const sdk = useDescope();
+  const { sessionToken } = useSession();
+  // Present while impersonating a family member - drives "click yourself to stop" below.
+  const isImpersonating = Boolean(decodeClaims(sessionToken)?.act);
   const [members, setMembers] = useState<FamilyMember[] | null>(null);
   const [families, setFamilies] = useState<Family[]>([]);
   const [selectedFamilyId, setSelectedFamilyId] = useState("");
@@ -59,15 +63,25 @@ export default function FamilyPanel({
     (m) => !selectedFamilyId || m.familyIds.includes(selectedFamilyId)
   );
 
-  async function onImpersonate(member: FamilyMember) {
-    if (!member.loginId) return;
+  // Clicking a member's row impersonates them; clicking the currently-active identity's own row (the
+  // "You" row, which is whoever the session actually is right now - the impersonated member, while
+  // impersonating) stops impersonating instead. Self while NOT impersonating is a no-op.
+  async function onRowClick(member: FamilyMember) {
+    const isSelf = member.userId === selfUserId;
     setError("");
     setBusyUserId(member.userId);
     try {
-      await familyApi(sdk).impersonate(member.loginId);
-      onClose(); // main screen now reflects the impersonated user's session
+      if (isSelf) {
+        if (!isImpersonating) return;
+        await familyApi(sdk).stopImpersonation();
+      } else {
+        if (!member.loginId) return;
+        await familyApi(sdk).impersonate(member.loginId);
+      }
+      onClose(); // main screen now reflects the new session
     } catch (e) {
-      setError((e as Error).message);
+      console.error(e);
+      setError(isSelf ? "Couldn't stop impersonating - try again." : "You can't log in as this user");
     } finally {
       setBusyUserId(null);
     }
@@ -118,13 +132,30 @@ export default function FamilyPanel({
             {visibleMembers.map((m) => {
               const isSelf = m.userId === selfUserId;
               const parentType = m.userFamilies.find((f) => f.familyId === selectedFamilyId)?.parentType;
+              // Self is only actionable while impersonating (click to stop); everyone else needs a
+              // login ID to impersonate.
+              const canAct = isSelf ? isImpersonating : Boolean(m.loginId);
               return (
                 <li
                   key={m.userId}
                   className="flex items-center justify-between gap-2 rounded-md bg-zinc-50 px-3 py-2 dark:bg-white/[.04]"
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Avatar name={m.name} picture={m.picture} size={36} />
+                  <button
+                    type="button"
+                    onClick={() => onRowClick(m)}
+                    disabled={busyUserId === m.userId || !canAct}
+                    title={
+                      isSelf
+                        ? isImpersonating
+                          ? "Stop impersonating"
+                          : ""
+                        : m.loginId
+                          ? "Impersonate"
+                          : "No login ID"
+                    }
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left transition-colors hover:bg-black/[.04] disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent dark:hover:bg-white/[.06]"
+                  >
+                    <Avatar name={m.name} picture={resolveAvatar(m.name, m.picture)} size={36} />
                     <div className="min-w-0">
                       <span className="text-sm font-medium text-black dark:text-zinc-50">
                         {m.name || m.email || m.phone || m.loginId || m.userId}
@@ -136,7 +167,7 @@ export default function FamilyPanel({
                       )}
                       {m.dependent && (
                         <span className="ml-2 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
-                          Dependent
+                          Child
                         </span>
                       )}
                       {parentType && (
@@ -150,23 +181,11 @@ export default function FamilyPanel({
                         </p>
                       )}
                     </div>
-                  </div>
+                  </button>
 
-                  <div className="flex shrink-0 gap-2">
-                    <button className={btn} onClick={() => setEditing(m)}>
-                      Edit
-                    </button>
-                    {!isSelf && (
-                      <button
-                        className={btn}
-                        disabled={busyUserId === m.userId || !m.loginId}
-                        title={m.loginId ? "" : "No login ID"}
-                        onClick={() => onImpersonate(m)}
-                      >
-                        {busyUserId === m.userId ? "Switching..." : "Impersonate"}
-                      </button>
-                    )}
-                  </div>
+                  <button className={btn} onClick={() => setEditing(m)}>
+                    Edit
+                  </button>
                 </li>
               );
             })}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Avatar from "./Avatar";
+import { resolveAvatar } from "../lib/avatars";
 import { updateProfile } from "../lib/profileApi";
 import type { FamilyMember } from "../lib/types";
 
@@ -22,7 +23,6 @@ export default function EditProfileModal({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(member.name || "");
-  const [picture, setPicture] = useState(member.picture || "");
   const [phone, setPhone] = useState(member.phone || "");
   const [parentType, setParentType] = useState(
     member.userFamilies.find((f) => f.familyId === familyId)?.parentType || ""
@@ -36,7 +36,7 @@ export default function EditProfileModal({
     setBusy(true);
     try {
       // Real Management API calls - see app/api/profile/route.ts.
-      await updateProfile({ userId: member.userId, name, picture, phone, familyId, parentType });
+      await updateProfile({ userId: member.userId, name, phone, familyId, parentType });
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -53,7 +53,7 @@ export default function EditProfileModal({
       >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-black dark:text-zinc-50">Edit details</h3>
-          <Avatar name={name} picture={picture} size={40} />
+          <Avatar name={name} picture={resolveAvatar(name, member.picture)} size={40} />
         </div>
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -61,16 +61,6 @@ export default function EditProfileModal({
         <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
           Name
           <input className={input} value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Picture URL
-          <input
-            className={input}
-            placeholder="https://..."
-            value={picture}
-            onChange={(e) => setPicture(e.target.value)}
-          />
         </label>
 
         <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
