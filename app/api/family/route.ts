@@ -1,5 +1,4 @@
 import { session, createSdk } from "@descope/nextjs-sdk/server";
-import { getProfileOverride } from "../../lib/mockStore";
 
 // @descope/node-sdk's UserResponse type hasn't been regenerated yet for the family
 // feature, so userFamilies/families/dependent are missing even though the backend returns them.
@@ -13,6 +12,7 @@ type UserWithFamilies = {
   dependent?: boolean;
   userFamilies?: { familyId: string; roleNames?: string[]; permissions?: string[] }[];
   families?: string[];
+  customAttributes?: Record<string, unknown>;
 };
 
 export async function GET() {
@@ -45,11 +45,17 @@ export async function GET() {
       );
     }
     const me = ((meRes.data?.users ?? []) as UserWithFamilies[])[0];
-    const myFamilyIds = (me?.userFamilies ?? []).map((f) => f.familyId);
+    const myUserFamilies = me?.userFamilies ?? [];
+    const myFamilyIds = myUserFamilies.map((f) => f.familyId);
+    // Drives the family selector - every family the caller belongs to, so they can switch between them.
+    const families = myUserFamilies.map((f) => ({
+      familyId: f.familyId,
+      roleNames: f.roleNames ?? [],
+    }));
 
     // Not in any family -> nothing to search. (An empty familyIds filter would match ALL users.)
     if (myFamilyIds.length === 0) {
-      return Response.json({ members: [] });
+      return Response.json({ members: [], families: [] });
     }
 
     // 2) Search all users across the caller's families in one shot, using the search API's familyIds
@@ -69,25 +75,24 @@ export async function GET() {
     }
     const users = (res.data?.users ?? []) as UserWithFamilies[];
 
-    // Name/picture/address edits are mocked for now (see app/api/profile) - overlay them here so the
-    // UI reflects an edit without touching the real Descope user record.
-    const members = users.map((u) => {
-      const override = getProfileOverride(u.userId);
-      return {
-        userId: u.userId,
-        loginId: u.loginIds?.[0],
-        loginIds: u.loginIds ?? [],
-        name: override?.name ?? u.name,
-        email: u.email,
-        phone: u.phone,
-        picture: override?.picture ?? u.picture,
-        address: override?.address,
-        dependent: u.dependent,
-        familyIds: u.userFamilies?.map((f) => f.familyId) ?? u.families ?? [],
-      };
-    });
+    // name/picture/phone/parentType come straight off the real Descope user record - edits in
+    // app/api/profile write through to the same record via the Management API, so no overlay is
+    // needed here. parentType is a family-scoped custom attribute, surfaced via customAttributes.
+    const members = users.map((u) => ({
+      userId: u.userId,
+      loginId: u.loginIds?.[0],
+      loginIds: u.loginIds ?? [],
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      picture: u.picture,
+      parentType:
+        typeof u.customAttributes?.parentType === "string" ? u.customAttributes.parentType : undefined,
+      dependent: u.dependent,
+      familyIds: u.userFamilies?.map((f) => f.familyId) ?? u.families ?? [],
+    }));
 
-    return Response.json({ members });
+    return Response.json({ members, families });
   } catch (e) {
     console.error("[api/family] unexpected error:", e);
     return Response.json({ error: (e as Error).message || "Internal error" }, { status: 500 });

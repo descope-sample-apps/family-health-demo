@@ -1,16 +1,14 @@
 import type { Appointment } from "./types";
 
 // --- MOCK DATA LAYER -------------------------------------------------------
-// Appointments and profile-detail edits (name/picture/address) have no Descope API of their own, so
-// they're backed by this in-memory store instead of a real database. Swap these functions for real
-// backend calls once the app has a concrete API to call - the route handlers in app/api/appointments
-// and app/api/profile are the only places that need to change.
+// Appointments have no Descope API of their own, so they're backed by this in-memory store instead of
+// a real database. Swap these functions for real backend calls once the app has a concrete API to call
+// - the route handlers in app/api/appointments are the only place that needs to change.
 //
 // Caveat: this state lives in the Next.js server process, so it resets on server restart / hot reload.
 // That's fine for a demo; don't rely on it surviving a deploy.
 
 const appointmentsByUser = new Map<string, Appointment[]>();
-const profileOverridesByUser = new Map<string, { name?: string; picture?: string; address?: string }>();
 
 let nextId = 1;
 function newId() {
@@ -58,21 +56,4 @@ export function createAppointment(userId: string, input: CreateAppointmentInput)
   list.push(appt);
   appointmentsByUser.set(userId, list);
   return appt;
-}
-
-export type ProfileUpdateInput = {
-  name?: string;
-  picture?: string;
-  address?: string;
-};
-
-export function getProfileOverride(userId: string) {
-  return profileOverridesByUser.get(userId);
-}
-
-export function setProfileOverride(userId: string, input: ProfileUpdateInput) {
-  const existing = profileOverridesByUser.get(userId) ?? {};
-  const merged = { ...existing, ...input };
-  profileOverridesByUser.set(userId, merged);
-  return merged;
 }

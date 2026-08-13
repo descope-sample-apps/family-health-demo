@@ -21,7 +21,8 @@ export default function EditProfileModal({
 }) {
   const [name, setName] = useState(member.name || "");
   const [picture, setPicture] = useState(member.picture || "");
-  const [address, setAddress] = useState(member.address || "");
+  const [phone, setPhone] = useState(member.phone || "");
+  const [parentType, setParentType] = useState(member.parentType || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -30,8 +31,8 @@ export default function EditProfileModal({
     setError("");
     setBusy(true);
     try {
-      // MOCK - see app/api/profile/route.ts. Doesn't touch the real Descope user record yet.
-      await updateProfile({ userId: member.userId, name, picture, address });
+      // Real Management API calls - see app/api/profile/route.ts.
+      await updateProfile({ userId: member.userId, name, picture, phone, parentType });
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -69,12 +70,23 @@ export default function EditProfileModal({
         </label>
 
         <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Address
+          Phone
           <input
             className={input}
-            placeholder="123 Main St, Springfield"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            type="tel"
+            placeholder="+1 555 123 4567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Parent type
+          <input
+            className={input}
+            placeholder="Mother / Father / Guardian"
+            value={parentType}
+            onChange={(e) => setParentType(e.target.value)}
           />
         </label>
 

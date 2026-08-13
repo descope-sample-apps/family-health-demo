@@ -10,7 +10,7 @@ way as [descope-sample-apps/family-account-demo](https://github.com/descope-samp
 - Profile button (picture + name) opens a panel listing every member of your family
 - Click a family member to impersonate them - the main screen then shows (and lets you book)
   *their* appointments
-- Edit button next to every family member's name to edit their name / picture / address
+- Edit button next to every family member's name to edit their name / picture / phone / parent type
 
 ## Stack
 
@@ -25,12 +25,12 @@ way as [descope-sample-apps/family-account-demo](https://github.com/descope-samp
 | Sign-in, session | Real - `@descope/nextjs-sdk`, same as the reference app |
 | Family member list (`/api/family`) | Real - Descope Management API user search, same as the reference app |
 | Impersonation (`/api/family/impersonate`, `/api/family/impersonate/stop`) | Real - Descope Management API, same as the reference app |
-| Appointments (`/api/appointments`) | **Mocked** - in-memory store, `app/lib/mockStore.ts`. No real appointments backend exists yet |
-| Profile edits: name/picture/address (`/api/profile`) | **Mocked** - in-memory store, overlaid onto the real family list. Doesn't touch the real Descope user record |
+| Profile edits: name/picture/phone (`/api/profile`) | Real - `UpdateUserDisplayName` / `UpdateUserPicture` / `UpdateUserPhone`. General-purpose user-update endpoints, not family-specific, but not in the reference app since it never had an edit feature |
+| Profile edit: parentType (`/api/profile`) | Real - a family-scoped custom attribute (defined directly on the Descope project), set via `PatchUser`'s `customAttributes`. There's no dedicated family-scoped-attribute update endpoint for an existing user yet, so it's set the same way any custom attribute is |
+| Appointments (`/api/appointments`) | **Mocked** - in-memory store, `app/lib/mockStore.ts`. No real appointments backend exists |
 
-The mocked pieces are isolated behind `app/lib/appointmentsApi.ts` / `app/lib/profileApi.ts` (client) and
-`app/api/appointments/`, `app/api/profile/` (server) - swap those for real calls once there's a concrete
-API to point at.
+The mocked appointments are isolated behind `app/lib/appointmentsApi.ts` (client) and
+`app/api/appointments/` (server) - swap those for real calls once there's a concrete API to point at.
 
 ## Setup
 
@@ -46,11 +46,12 @@ API to point at.
    NEXT_PUBLIC_DESCOPE_PROJECT_ID=<your Descope project ID>
    NEXT_PUBLIC_DESCOPE_FLOW_ID=sign-up-or-in
    NEXT_PUBLIC_DESCOPE_BASE_URL=<optional, custom Descope base URL>
-   DESCOPE_MANAGEMENT_KEY=<management key, used server-side by /api/family and /api/family/impersonate*>
+   DESCOPE_MANAGEMENT_KEY=<management key, used server-side by /api/family, /api/family/impersonate*, and /api/profile>
    ```
 
    Family accounts must be enabled on the Descope project, with at least one family and a couple of
-   members, for `/api/family` to return anything.
+   members, for `/api/family` to return anything. The `parentType` custom attribute must be defined on
+   the project (family-scoped) for it to be settable/visible.
 
 3. Run the dev server
 
@@ -69,7 +70,8 @@ API to point at.
 - `app/components/FamilyPanel.tsx` fetches `/api/family` (real Management API call) and renders every
   member; clicking a member (other than yourself) calls `familyApi(sdk).impersonate(...)`, which hits
   `/api/family/impersonate` and adopts the returned refresh JWT via `sdk.refresh()`
-- `app/components/EditProfileModal.tsx` posts to `/api/profile` (mocked) to edit name/picture/address
+- `app/components/EditProfileModal.tsx` posts to `/api/profile` (real Management API calls) to edit
+  name/picture/phone/parentType
 - `app/components/AppointmentsSection.tsx` fetches `/api/appointments` (mocked), scoped to whichever user
   the *current session* belongs to - so it automatically reflects the impersonated user while
   impersonating, with no extra plumbing

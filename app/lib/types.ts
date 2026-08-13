@@ -8,9 +8,14 @@ export type FamilyMember = {
   email?: string;
   phone?: string;
   picture?: string;
-  address?: string;
+  parentType?: string; // family-scoped custom attribute (e.g. "Mother", "Father", "Guardian")
   dependent?: boolean;
   familyIds: string[];
+};
+
+export type Family = {
+  familyId: string;
+  roleNames: string[];
 };
 
 export type Appointment = {

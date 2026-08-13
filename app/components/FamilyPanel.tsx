@@ -5,10 +5,12 @@ import { useDescope } from "@descope/nextjs-sdk/client";
 import Avatar from "./Avatar";
 import EditProfileModal from "./EditProfileModal";
 import { familyApi } from "../lib/family";
-import type { FamilyMember } from "../lib/types";
+import type { Family, FamilyMember } from "../lib/types";
 
 const btn =
   "rounded-full border border-black/[.08] px-3 py-1 text-xs font-medium transition-colors hover:bg-black/[.04] disabled:opacity-40 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]";
+const input =
+  "rounded-md border border-black/[.08] bg-transparent px-3 py-1.5 text-sm outline-none focus:border-black/30 dark:border-white/[.145] dark:focus:border-white/40";
 
 export default function FamilyPanel({
   selfUserId,
@@ -19,6 +21,8 @@ export default function FamilyPanel({
 }) {
   const sdk = useDescope();
   const [members, setMembers] = useState<FamilyMember[] | null>(null);
+  const [families, setFamilies] = useState<Family[]>([]);
+  const [selectedFamilyId, setSelectedFamilyId] = useState("");
   const [error, setError] = useState("");
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [editing, setEditing] = useState<FamilyMember | null>(null);
@@ -32,7 +36,16 @@ export default function FamilyPanel({
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
         if (!alive) return;
-        setMembers((data as { members: FamilyMember[] }).members);
+        const parsed = data as { members: FamilyMember[]; families: Family[] };
+        setMembers(parsed.members);
+        setFamilies(parsed.families);
+        // Default to the first family the caller belongs to, but keep whatever's already selected
+        // (e.g. after an edit triggers a reload) if it's still valid.
+        setSelectedFamilyId((prev) =>
+          prev && parsed.families.some((f) => f.familyId === prev)
+            ? prev
+            : parsed.families[0]?.familyId ?? ""
+        );
       } catch (e) {
         if (alive) setError((e as Error).message);
       }
@@ -41,6 +54,10 @@ export default function FamilyPanel({
       alive = false;
     };
   }, [reloadKey]);
+
+  const visibleMembers = members?.filter(
+    (m) => !selectedFamilyId || m.familyIds.includes(selectedFamilyId)
+  );
 
   async function onImpersonate(member: FamilyMember) {
     if (!member.loginId) return;
@@ -68,20 +85,38 @@ export default function FamilyPanel({
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
+        {families.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Family
+            <select
+              className={input}
+              value={selectedFamilyId}
+              onChange={(e) => setSelectedFamilyId(e.target.value)}
+            >
+              {families.map((f) => (
+                <option key={f.familyId} value={f.familyId}>
+                  {f.familyId}
+                  {f.roleNames.length > 0 ? ` (${f.roleNames.join(", ")})` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {members === null && !error && (
           <p className="text-sm text-zinc-600 dark:text-zinc-400">Loading family members...</p>
         )}
 
-        {members !== null && members.length === 0 && (
+        {members !== null && families.length === 0 && (
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             No family found for this user. Configure a family in your Descope project to see members
             here.
           </p>
         )}
 
-        {members !== null && members.length > 0 && (
+        {visibleMembers !== undefined && visibleMembers.length > 0 && (
           <ul className="flex flex-col gap-2">
-            {members.map((m) => {
+            {visibleMembers.map((m) => {
               const isSelf = m.userId === selfUserId;
               return (
                 <li
@@ -104,9 +139,14 @@ export default function FamilyPanel({
                           Dependent
                         </span>
                       )}
-                      {m.address && (
+                      {m.parentType && (
+                        <span className="ml-2 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
+                          {m.parentType}
+                        </span>
+                      )}
+                      {m.phone && (
                         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {m.address}
+                          {m.phone}
                         </p>
                       )}
                     </div>
