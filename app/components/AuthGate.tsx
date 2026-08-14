@@ -23,7 +23,12 @@ export default function AuthGate() {
   // on useUser()'s cached object, so the profile button and the appointments list (keyed off `sub`
   // below) both actually reflect an identity switch.
   const sub = decodeClaims(sessionToken)?.sub;
+  // While impersonating, the "Viewing as" banner names the impersonating PARENT (the actor who
+  // started the impersonation), not the impersonated child `sub` is currently pointing at - resolved
+  // from the act claim's `sub` (see app/lib/family.ts for why that's the impersonator's user id).
+  const actorId = decodeClaims(sessionToken)?.act?.sub;
   const [me, setMe] = useState<CurrentUser | null>(null);
+  const [actor, setActor] = useState<CurrentUser | null>(null);
   // Which subject `me` was fetched for - lets us tell "still loading the new identity" apart from
   // "loaded, just happens to render the same" without touching a ref during render.
   const [meSub, setMeSub] = useState<string | undefined>(undefined);
@@ -44,6 +49,22 @@ export default function AuthGate() {
       alive = false;
     };
   }, [sub]);
+
+  useEffect(() => {
+    // No reset when actorId disappears (stopped impersonating): the banner that reads `actor` only
+    // renders while isImpersonating is true, i.e. while actorId IS set, so a stale value here is
+    // simply never read.
+    if (!actorId) return;
+    let alive = true;
+    (async () => {
+      const res = await fetch(`/api/me?userId=${encodeURIComponent(actorId)}`);
+      const data = await res.json().catch(() => ({}));
+      if (alive && res.ok) setActor(data as CurrentUser);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [actorId]);
 
   if (isSessionLoading || (sub && meSub !== sub)) {
     return <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>;
@@ -69,7 +90,7 @@ export default function AuthGate() {
 
       {isImpersonating && (
         <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          <span>Viewing as {me?.name || me?.email || me?.userId}</span>
+          <span>Viewing as {actor?.name || actor?.email || actor?.userId}</span>
           <button
             onClick={() => familyApi(sdk).stopImpersonation()}
             className="rounded-full border border-amber-400 px-3 py-1 text-xs font-medium transition-colors hover:bg-amber-100 dark:border-amber-500/50 dark:hover:bg-amber-500/20"

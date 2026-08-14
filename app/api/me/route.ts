@@ -6,13 +6,18 @@ import { session, createSdk } from "@descope/nextjs-sdk/server";
 // is already cached), so the client can't rely on it to reflect an identity switch. The session token's
 // `sub` claim DOES update reactively (useSession() picks it up immediately), so the client re-derives
 // "who am I" by calling this route keyed off that claim - see app/components/AuthGate.tsx.
-export async function GET() {
+//
+// Also accepts an optional ?userId= to look up someone ELSE by id - used to resolve the impersonating
+// parent's name from the session's `act.sub` claim for the "Viewing as" banner (same trust boundary as
+// /api/profile: any authenticated caller can look up any family member, not just themselves).
+export async function GET(req: Request) {
   const current = await session();
   if (!current?.token.sub) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
+  const targetUserId = new URL(req.url).searchParams.get("userId") || current.token.sub;
   const sdk = createSdk();
-  const res = await sdk.management.user.search({ userIds: [current.token.sub], limit: 1 });
+  const res = await sdk.management.user.search({ userIds: [targetUserId], limit: 1 });
   if (!res.ok) {
     return Response.json(
       { error: res.error?.errorMessage || "Failed to load user" },
