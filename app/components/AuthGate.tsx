@@ -1,18 +1,51 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Descope } from "@descope/nextjs-sdk";
-import { useSession, useUser, useDescope } from "@descope/nextjs-sdk/client";
+import { useSession, useDescope } from "@descope/nextjs-sdk/client";
 import ProfileButton from "./ProfileButton";
 import AppointmentsSection from "./AppointmentsSection";
 import { decodeClaims, familyApi } from "../lib/family";
 
+type CurrentUser = {
+  userId?: string;
+  name?: string;
+  email?: string;
+  picture?: string;
+};
+
 export default function AuthGate() {
   const { isAuthenticated, isSessionLoading, sessionToken } = useSession();
-  const { isUserLoading, user } = useUser();
   const sdk = useDescope();
-  const isLoading = isSessionLoading || isUserLoading;
+  // The session token's `sub` claim updates reactively the instant sdk.refresh() adopts a new
+  // session (impersonate/stop) - unlike useUser(), which only fetches once per mount and never
+  // reactively refetches afterward. Re-fetch "who am I" whenever `sub` changes instead of relying
+  // on useUser()'s cached object, so the profile button and the appointments list (keyed off `sub`
+  // below) both actually reflect an identity switch.
+  const sub = decodeClaims(sessionToken)?.sub;
+  const [me, setMe] = useState<CurrentUser | null>(null);
+  // Which subject `me` was fetched for - lets us tell "still loading the new identity" apart from
+  // "loaded, just happens to render the same" without touching a ref during render.
+  const [meSub, setMeSub] = useState<string | undefined>(undefined);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!sub) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/me");
+        const data = await res.json().catch(() => ({}));
+        if (alive && res.ok) setMe(data as CurrentUser);
+      } finally {
+        if (alive) setMeSub(sub);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [sub]);
+
+  if (isSessionLoading || (sub && meSub !== sub)) {
     return <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>;
   }
 
@@ -25,7 +58,7 @@ export default function AuthGate() {
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex items-center justify-between">
-        <ProfileButton user={user} />
+        <ProfileButton user={me} />
         <button
           onClick={() => sdk.logout()}
           className="rounded-full border border-black/[.08] px-4 py-2 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
@@ -36,7 +69,7 @@ export default function AuthGate() {
 
       {isImpersonating && (
         <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          <span>Viewing as {user?.name || user?.email || user?.userId}</span>
+          <span>Viewing as {me?.name || me?.email || me?.userId}</span>
           <button
             onClick={() => familyApi(sdk).stopImpersonation()}
             className="rounded-full border border-amber-400 px-3 py-1 text-xs font-medium transition-colors hover:bg-amber-100 dark:border-amber-500/50 dark:hover:bg-amber-500/20"
@@ -46,7 +79,7 @@ export default function AuthGate() {
         </div>
       )}
 
-      <AppointmentsSection subject={user?.userId} />
+      <AppointmentsSection subject={sub} />
     </div>
   );
 }

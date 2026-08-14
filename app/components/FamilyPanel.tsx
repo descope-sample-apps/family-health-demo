@@ -78,12 +78,7 @@ export default function FamilyPanel({
         if (!member.loginId) return;
         await familyApi(sdk).impersonate(member.loginId);
       }
-      // Full reload, not just onClose(): sdk.refresh() swaps the session/refresh tokens, but
-      // useUser()'s cached profile only ever fetches once per mount (see @descope/react-sdk's
-      // useUser - it skips fetching whenever a user is already loaded) and doesn't reactively
-      // refetch on refresh(). AppointmentsSection's fetch is keyed off that same stale user id, so
-      // without a reload neither the profile button nor the appointments list would update.
-      window.location.reload();
+      onClose(); // main screen now reflects the new session
     } catch (e) {
       console.error(e);
       setError(isSelf ? "Couldn't stop impersonating - try again." : "You can't log in as this user");
