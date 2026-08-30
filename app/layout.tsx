@@ -38,6 +38,14 @@ export default function RootLayout({
       sessionTokenViaCookie={{
         secure: false,
       }}
+      // Without this, refreshTokenViaCookie defaults to secure:true, and since this app runs on plain
+      // http://localhost in dev, the browser silently refuses to set that cookie at all - which is
+      // exactly what made getRefreshToken() keep returning the stale pre-impersonation token (the
+      // SDK's attempt to persist a new one after sdk.refresh() was being dropped the whole time). The
+      // SDK logs this misconfiguration to the console verbatim if you leave it unset.
+      refreshTokenViaCookie={{
+        secure: false,
+      }}
     >
       <html
         lang="en"

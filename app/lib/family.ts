@@ -10,6 +10,18 @@ type Sdk = {
   refresh: (token?: string) => Promise<unknown>;
 };
 
+// call an end-user onetime endpoint via the sdk (session-token authed); the sdk auto-persists a
+// JWTResponse, so - unlike impersonate/stop - no explicit sdk.refresh() is needed afterward.
+async function sdkPost(sdk: Sdk, path: string, body: Record<string, unknown>) {
+  const res = await sdk.httpClient.post(path, body);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as { errorMessage?: string; message?: string };
+    throw new Error(err?.errorMessage || err?.message || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
 // call one of this app's server route handlers (which proxy to the Management API)
 async function apiPost(path: string, body: Record<string, unknown>) {
   const res = await fetch(path, {
@@ -27,8 +39,15 @@ async function apiPost(path: string, body: Record<string, unknown>) {
 
 export function familyApi(sdk: Sdk) {
   return {
-    impersonate: async (dependentLoginId: string) => {
-      const { refreshJwt } = await apiPost("/api/family/impersonate", { dependentLoginId });
+    // Stamps dcf on the CALLER's own (non-impersonated) session - a real, separate family-account
+    // capability from impersonate's selectedFamily, which only stamps dcf on the impersonated one.
+    selectFamily: (familyId: string) => sdkPost(sdk, "/v1/auth/family/select", { familyId }),
+    // selectedFamily is optional but not cosmetic - see app/api/family/impersonate/route.ts for why.
+    impersonate: async (dependentLoginId: string, selectedFamily?: string) => {
+      const { refreshJwt } = await apiPost("/api/family/impersonate", {
+        dependentLoginId,
+        selectedFamily,
+      });
       // adopt the impersonated user's session; useSession()/useUser() then update reactively
       await sdk.refresh(refreshJwt);
     },

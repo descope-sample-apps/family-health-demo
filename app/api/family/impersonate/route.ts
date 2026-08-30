@@ -9,13 +9,18 @@ export async function POST(req: Request) {
   if (!current) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
-  const { dependentLoginId } = (await req.json().catch(() => ({}))) as {
+  const { dependentLoginId, selectedFamily } = (await req.json().catch(() => ({}))) as {
     dependentLoginId?: string;
+    selectedFamily?: string;
   };
   try {
+    // selectedFamily is optional but not cosmetic: omitting it means the impersonated session carries
+    // no dcf (current-family) claim at all. We pass whichever family is selected in the UI so the
+    // resulting session's dcf matches what the user was looking at when they clicked impersonate.
     const data = await mgmtFamilyCall("/v1/mgmt/family/impersonate", {
       impersonatorUserIdOrLoginId: current.token.sub,
       dependentLoginId,
+      selectedFamily,
     });
     return Response.json({ refreshJwt: data.jwt });
   } catch (e) {

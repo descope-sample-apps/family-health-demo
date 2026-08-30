@@ -63,6 +63,21 @@ export default function FamilyPanel({
     (m) => !selectedFamilyId || m.familyIds.includes(selectedFamilyId)
   );
 
+  // Switching the family dropdown always refilters the member list locally; when NOT impersonating it
+  // also calls the real SelectFamily endpoint, stamping dcf on the caller's own session (a separate
+  // capability from impersonate's selectedFamily, which only stamps dcf on the impersonated session -
+  // see app/api/family/impersonate/route.ts).
+  async function onFamilyChange(familyId: string) {
+    setSelectedFamilyId(familyId);
+    if (isImpersonating) return;
+    try {
+      await familyApi(sdk).selectFamily(familyId);
+    } catch (e) {
+      console.error(e);
+      setError("Couldn't switch family - try again.");
+    }
+  }
+
   // Clicking a member's row impersonates them; clicking the currently-active identity's own row (the
   // "You" row, which is whoever the session actually is right now - the impersonated member, while
   // impersonating) stops impersonating instead. Self while NOT impersonating is a no-op.
@@ -76,7 +91,7 @@ export default function FamilyPanel({
         await familyApi(sdk).stopImpersonation();
       } else {
         if (!member.loginId) return;
-        await familyApi(sdk).impersonate(member.loginId);
+        await familyApi(sdk).impersonate(member.loginId, selectedFamilyId);
       }
       onClose(); // main screen now reflects the new session
     } catch (e) {
@@ -105,7 +120,7 @@ export default function FamilyPanel({
             <select
               className={input}
               value={selectedFamilyId}
-              onChange={(e) => setSelectedFamilyId(e.target.value)}
+              onChange={(e) => onFamilyChange(e.target.value)}
             >
               {families.map((f) => (
                 <option key={f.familyId} value={f.familyId}>

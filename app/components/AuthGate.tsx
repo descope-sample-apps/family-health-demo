@@ -5,6 +5,7 @@ import { Descope } from "@descope/nextjs-sdk";
 import { useSession, useDescope } from "@descope/nextjs-sdk/client";
 import ProfileButton from "./ProfileButton";
 import AppointmentsSection from "./AppointmentsSection";
+import JwtDebugPanel from "./JwtDebugPanel";
 import { decodeClaims, familyApi } from "../lib/family";
 
 type CurrentUser = {
@@ -101,6 +102,7 @@ export default function AuthGate() {
       )}
 
       <AppointmentsSection subject={sub} />
+      <JwtDebugPanel />
     </div>
   );
 }
