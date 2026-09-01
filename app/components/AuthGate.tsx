@@ -13,6 +13,7 @@ type CurrentUser = {
   name?: string;
   email?: string;
   picture?: string;
+  dependent?: boolean;
 };
 
 export default function AuthGate() {
@@ -102,7 +103,8 @@ export default function AuthGate() {
       )}
 
       <AppointmentsSection subject={sub} />
-      <JwtDebugPanel />
+      {/* Local debugging aid only - never rendered in a production build (it prints raw JWTs). */}
+      {process.env.NODE_ENV === "development" && <JwtDebugPanel />}
     </div>
   );
 }

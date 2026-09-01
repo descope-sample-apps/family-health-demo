@@ -33,5 +33,7 @@ export async function GET(req: Request) {
     name: user.name,
     email: user.email,
     picture: user.picture,
+    // drives which default avatar the client falls back to - see app/lib/avatars.ts
+    dependent: (user as { dependent?: boolean }).dependent,
   });
 }

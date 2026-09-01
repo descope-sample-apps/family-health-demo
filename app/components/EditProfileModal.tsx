@@ -53,7 +53,7 @@ export default function EditProfileModal({
       >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-black dark:text-zinc-50">Edit details</h3>
-          <Avatar name={name} picture={resolveAvatar(name, member.picture)} size={40} />
+          <Avatar name={name} picture={resolveAvatar(member.picture, member.dependent)} size={40} />
         </div>
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

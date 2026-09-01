@@ -18,34 +18,24 @@ export const metadata: Metadata = {
   description: "Descope family account management demo for a family health app",
 };
 
+// Cookies must be Secure in production (HTTPS) but must NOT be in local dev, where the app is served
+// over plain http - a Secure cookie is silently dropped by the browser there, which breaks session and
+// refresh-token persistence. This is the SDK's own recommended form for that.
+const cookieConfig = { secure: process.env.NODE_ENV !== "development" };
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const baseUrl = process.env.NEXT_PUBLIC_DESCOPE_BASE_URL;
-  // Against a local Descope backend the flow pages aren't on the default CDN,
-  // so point the widget at the local static content host.
-  const baseStaticUrl = baseUrl?.includes("localhost")
-    ? "https://static.local.descope.org/pages"
-    : undefined;
-
   return (
     <AuthProvider
       projectId={process.env.NEXT_PUBLIC_DESCOPE_PROJECT_ID!}
-      baseUrl={baseUrl}
-      baseStaticUrl={baseStaticUrl}
-      sessionTokenViaCookie={{
-        secure: false,
-      }}
-      // Without this, refreshTokenViaCookie defaults to secure:true, and since this app runs on plain
-      // http://localhost in dev, the browser silently refuses to set that cookie at all - which is
-      // exactly what made getRefreshToken() keep returning the stale pre-impersonation token (the
-      // SDK's attempt to persist a new one after sdk.refresh() was being dropped the whole time). The
-      // SDK logs this misconfiguration to the console verbatim if you leave it unset.
-      refreshTokenViaCookie={{
-        secure: false,
-      }}
+      // Unset in normal use - the SDK then targets Descope's production API and flow CDN. Only set it
+      // to point at a non-default Descope environment.
+      baseUrl={process.env.NEXT_PUBLIC_DESCOPE_BASE_URL}
+      sessionTokenViaCookie={cookieConfig}
+      refreshTokenViaCookie={cookieConfig}
     >
       <html
         lang="en"

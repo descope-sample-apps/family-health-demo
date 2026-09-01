@@ -1,8 +1,9 @@
 # Family Health Demo
 
 Next.js demo app for exercising [Descope](https://www.descope.com) family account management
-(family listing + impersonation) in a family-health-scheduling scenario. Backend is structured the same
-way as [descope-sample-apps/family-account-demo](https://github.com/descope-sample-apps/family-account-demo).
+(family listing, family selection, and impersonation) in a family-health-scheduling scenario. The
+Descope integration is structured the same way as
+[descope-sample-apps/family-account-demo](https://github.com/descope-sample-apps/family-account-demo).
 
 ## Features
 
@@ -10,8 +11,8 @@ way as [descope-sample-apps/family-account-demo](https://github.com/descope-samp
 - Profile button (picture + name) opens a panel listing every member of your family, with a family
   selector at the top (by name) if you belong to more than one
 - Click a family member to impersonate them - the main screen then shows (and lets you book)
-  *their* appointments
-- Edit button next to every family member's name to edit their name / picture / phone / parent type
+  *their* appointments. Click your own row to stop impersonating
+- Edit button next to every family member's name to edit their name / phone / parent type
 
 ## Stack
 
@@ -21,18 +22,32 @@ way as [descope-sample-apps/family-account-demo](https://github.com/descope-samp
 
 ## What's real vs. mocked
 
+Everything Descope-related is a real API call. Only the appointments domain - which has no Descope
+API - is mocked.
+
 | Area | Backing |
 |---|---|
-| Sign-in, session | Real - `@descope/nextjs-sdk`, same as the reference app |
-| Family member list (`/api/family`) | Real - Descope Management API user search, same as the reference app |
-| Family selector (names) | Real - `SearchFamilies` (`POST /v1/mgmt/family/search`), not in the reference app - no typed SDK method yet, called via `mgmtFamilyCall`/`httpClient.post` the same way `/api/family/impersonate*` are |
-| Impersonation (`/api/family/impersonate`, `/api/family/impersonate/stop`) | Real - Descope Management API, same as the reference app |
-| Profile edits: name/picture/phone (`/api/profile`) | Real - `UpdateUserDisplayName` / `UpdateUserPicture` / `UpdateUserPhone`. General-purpose user-update endpoints, not family-specific, but not in the reference app since it never had an edit feature |
-| Profile edit: parentType (`/api/profile`) | Real - a genuine family-scoped custom attribute (defined directly on the Descope project), set via `PatchUser`'s `familyAssociations` per [descope/backend#2161](https://github.com/descope/backend/pull/2161). No typed SDK method yet, so this is a raw `httpClient.patch("/v1/mgmt/user/patch", ...)` call. See the comment in `app/api/profile/route.ts` for why it has to round-trip the member's *other* families and roleNames too - `familyAssociations` replaces the full family list, and roleNames have no preserve-if-omitted semantics (only familyScopedAttributes does) |
+| Sign-in, session | Real - `@descope/nextjs-sdk` |
+| Current user (`/api/me`) | Real - Management API user search, keyed off the session token's `sub` claim |
+| Family member list (`/api/family`) | Real - Management API user search with the `familyIds` filter |
+| Family selector names (`/api/family`) | Real - `SearchFamilies` (`POST /v1/mgmt/family/search`). No typed SDK method yet, so it goes through `mgmtFamilyCall`/`httpClient.post` |
+| Select family (`dcf` claim) | Real - `POST /v1/auth/family/select`, session-token authed via the SDK's `httpClient` |
+| Impersonation (`/api/family/impersonate`, `.../stop`) | Real - Management API. `selectedFamily` is passed through so the impersonated session carries a `dcf` claim |
+| Profile edits: name / phone (`/api/profile`) | Real - `UpdateUserDisplayName` / `UpdateUserPhone` |
+| Profile edit: parentType (`/api/profile`) | Real - a family-scoped custom attribute, set via `PatchUser`'s `familyAssociations` per [descope/backend#2161](https://github.com/descope/backend/pull/2161). No typed SDK method yet, so it's a raw `httpClient.patch("/v1/mgmt/user/patch", ...)`. See that route's comment for why it must round-trip the member's *other* families and their roleNames - `familyAssociations` replaces the full family list, and roleNames have no preserve-if-omitted semantics (only `familyScopedAttributes` does) |
 | Appointments (`/api/appointments`) | **Mocked** - in-memory store, `app/lib/mockStore.ts`. No real appointments backend exists |
 
 The mocked appointments are isolated behind `app/lib/appointmentsApi.ts` (client) and
 `app/api/appointments/` (server) - swap those for real calls once there's a concrete API to point at.
+
+## Descope project requirements
+
+- Family accounts enabled, with at least one family and a couple of members (including a dependent,
+  so impersonation has a valid target - only dependents can be impersonated)
+- The member doing the impersonating needs the family-scoped **Family Impersonate Dependents**
+  permission in that family
+- A family-scoped custom attribute named `parentType` for that field to be settable/visible
+- A management key (used server-side only) with permission to read users and families
 
 ## Setup
 
@@ -42,18 +57,14 @@ The mocked appointments are isolated behind `app/lib/appointmentsApi.ts` (client
    npm install
    ```
 
-2. Create `.env.local` (see `.env.example`)
+2. Copy `.env.example` to `.env.local` and fill in your project ID and management key:
 
    ```bash
-   NEXT_PUBLIC_DESCOPE_PROJECT_ID=<your Descope project ID>
-   NEXT_PUBLIC_DESCOPE_FLOW_ID=sign-up-or-in
-   NEXT_PUBLIC_DESCOPE_BASE_URL=<optional, custom Descope base URL>
-   DESCOPE_MANAGEMENT_KEY=<management key, used server-side by /api/family, /api/family/impersonate*, and /api/profile>
+   cp .env.example .env.local
    ```
 
-   Family accounts must be enabled on the Descope project, with at least one family and a couple of
-   members, for `/api/family` to return anything. The `parentType` custom attribute must be defined as
-   family-scoped on the project for it to be settable/visible (requires descope/backend#2161).
+   `NEXT_PUBLIC_DESCOPE_BASE_URL` should be left unset - the SDK then targets Descope's production
+   API and flow CDN. Only set it to point at a non-default Descope environment.
 
 3. Run the dev server
 
@@ -63,27 +74,47 @@ The mocked appointments are isolated behind `app/lib/appointmentsApi.ts` (client
 
    Open [http://localhost:3000](http://localhost:3000)
 
+## Deploying
+
+The app is a standard Next.js App Router project with no special build steps - `npm run build` then
+`npm run start`, or deploy straight to Vercel.
+
+Set the same two required env vars in your host's environment (`NEXT_PUBLIC_DESCOPE_PROJECT_ID`,
+`DESCOPE_MANAGEMENT_KEY`). The management key is read server-side only and is never exposed to the
+browser - keep it out of any `NEXT_PUBLIC_*` variable.
+
+Two things to know before putting this in front of anyone:
+
+- **Appointments won't persist.** `app/lib/mockStore.ts` is process memory, so on a serverless host
+  each instance has its own copy and every cold start wipes it. Fine for a demo, not for real use.
+- **Session cookies** are marked `Secure` automatically outside development (see `app/layout.tsx`),
+  so the deployed app must be served over HTTPS - which Vercel and most hosts do by default.
+
 ## How it works
 
-- `app/layout.tsx` wraps the app in Descope's `AuthProvider` with the session token delivered via cookie
-- `app/components/AuthGate.tsx` renders the Descope sign-in flow when unauthenticated, and the header +
-  appointments section once signed in
+- `app/layout.tsx` wraps the app in Descope's `AuthProvider`, with session and refresh tokens
+  delivered via cookie so server route handlers can read them
+- `app/components/AuthGate.tsx` renders the Descope sign-in flow when unauthenticated. Once signed
+  in it derives the current identity from the session token's `sub` claim and fetches `/api/me` -
+  deliberately *not* `useUser()`, which caches its first fetch and never refetches after
+  `sdk.refresh()` swaps sessions, so it would go stale the moment you impersonate
 - `app/components/ProfileButton.tsx` shows the current user's avatar/name and opens `FamilyPanel`
-- `app/components/FamilyPanel.tsx` fetches `/api/family` (real Management API calls) and renders every
-  member for whichever family is selected; clicking a member (other than yourself) calls
-  `familyApi(sdk).impersonate(...)`, which hits `/api/family/impersonate` and adopts the returned refresh
-  JWT via `sdk.refresh()`
-- `app/components/EditProfileModal.tsx` posts to `/api/profile` (real Management API calls) to edit
-  name/picture/phone/parentType (parentType is scoped to whichever family is currently selected)
-- `app/components/AppointmentsSection.tsx` fetches `/api/appointments` (mocked), scoped to whichever user
-  the *current session* belongs to - so it automatically reflects the impersonated user while
-  impersonating, with no extra plumbing
-- `app/components/ScheduleAppointmentModal.tsx` posts a new appointment to `/api/appointments` (mocked)
+- `app/components/FamilyPanel.tsx` fetches `/api/family` and renders every member of the selected
+  family. Clicking another member calls `familyApi(sdk).impersonate(...)`, which hits
+  `/api/family/impersonate` and adopts the returned refresh JWT via `sdk.refresh()`; clicking your
+  own row stops impersonating. Switching the family dropdown calls the real `SelectFamily` endpoint
+  when you're not impersonating
+- `app/components/EditProfileModal.tsx` posts to `/api/profile` to edit name/phone/parentType
+  (parentType is scoped to whichever family is currently selected)
+- `app/components/AppointmentsSection.tsx` fetches `/api/appointments`, scoped to whichever user the
+  *current session* belongs to - so it automatically reflects the impersonated user, no extra plumbing
+- `app/lib/avatars.ts` falls back to a generic child or adult avatar when a member has no `picture`
+  set in Descope
 
 ## Notes
 
-- The family fields (`userFamilies`, `dependent`, `familyScopedAttributes`) are typed locally in the API
+- Family fields (`userFamilies`, `dependent`, `familyScopedAttributes`) are typed locally in the API
   routes because the SDK's `UserResponse` type doesn't include them yet
 - User search is capped at a single page of 1000 users - fine for a demo tenant
-- The mock store (`app/lib/mockStore.ts`) lives in server process memory - it resets on restart / hot
-  reload. Fine for a demo, not for anything you need to survive a deploy
+- `app/components/JwtDebugPanel.tsx` prints the live session and refresh JWTs at the bottom of the
+  screen. It is gated to `NODE_ENV === "development"` and never renders in a production build

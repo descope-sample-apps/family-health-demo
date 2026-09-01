@@ -170,7 +170,7 @@ export default function FamilyPanel({
                     }
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left transition-colors hover:bg-black/[.04] disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent dark:hover:bg-white/[.06]"
                   >
-                    <Avatar name={m.name} picture={resolveAvatar(m.name, m.picture)} size={36} />
+                    <Avatar name={m.name} picture={resolveAvatar(m.picture, m.dependent)} size={36} />
                     <div className="min-w-0">
                       <span className="text-sm font-medium text-black dark:text-zinc-50">
                         {m.name || m.email || m.phone || m.loginId || m.userId}
