@@ -22,6 +22,28 @@ async function sdkPost(sdk: Sdk, path: string, body: Record<string, unknown>) {
   return data;
 }
 
+// Adopt a refresh JWT that was re-minted out of band (mgmt impersonate / stop). Those responses come
+// back through our own server routes, so the SDK's persist hook never sees them - and sdk.refresh(token)
+// uses the token for that one call without storing it (/v1/auth/refresh returns an empty refreshJwt when
+// the token isn't rotated, so nothing gets persisted there either). Without this, getRefreshToken() and
+// the SDK's auto-refresh keep using the PREVIOUS identity's refresh token: stop-impersonation fails
+// (that token has no act claim) and the next auto-refresh silently flips the session back.
+// Write to wherever the SDK already keeps it: the "DSR" cookie when one exists (refreshTokenViaCookie,
+// this app's setup), localStorage "DSR" otherwise (the SDK default) - getRefreshToken() checks the
+// cookie before localStorage, so writing the wrong bucket leaves the stale token shadowing the new one.
+// Projects that manage tokens in httpOnly cookies (cookie response mode) don't need any of this - the
+// auth endpoints set the cookie themselves and the refresh JWT never passes through app code.
+function adoptRefreshJwt(refreshJwt: string | undefined) {
+  if (!refreshJwt) return;
+  if (document.cookie.split("; ").some((c) => c.startsWith("DSR="))) {
+    const exp = decodeClaims(refreshJwt)?.exp;
+    const maxAge = exp ? `; max-age=${exp - Math.floor(Date.now() / 1000)}` : "";
+    document.cookie = `DSR=${refreshJwt}; path=/${maxAge}`;
+  } else {
+    localStorage.setItem("DSR", refreshJwt);
+  }
+}
+
 // call one of this app's server route handlers (which proxy to the Management API)
 async function apiPost(path: string, body: Record<string, unknown>) {
   const res = await fetch(path, {
@@ -49,6 +71,7 @@ export function familyApi(sdk: Sdk) {
         selectedFamily,
       });
       // adopt the impersonated user's session; useSession()/useUser() then update reactively
+      adoptRefreshJwt(refreshJwt);
       await sdk.refresh(refreshJwt);
     },
     stopImpersonation: async () => {
@@ -56,6 +79,7 @@ export function familyApi(sdk: Sdk) {
         refreshJwt: getRefreshToken(),
       });
       // adopt the acting user's restored session
+      adoptRefreshJwt(refreshJwt);
       await sdk.refresh(refreshJwt);
     },
   };

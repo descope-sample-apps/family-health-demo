@@ -34,6 +34,9 @@ export default function RootLayout({
       // Unset in normal use - the SDK then targets Descope's production API and flow CDN. Only set it
       // to point at a non-default Descope environment.
       baseUrl={process.env.NEXT_PUBLIC_DESCOPE_BASE_URL}
+      // Session token as a cookie so the server routes (session() in /api/*) can read it off the
+      // request; refresh token as a cookie too. adoptRefreshJwt() in app/lib/family.ts writes to
+      // whichever bucket is in use here (cookie, or localStorage when refreshTokenViaCookie is off)
       sessionTokenViaCookie={cookieConfig}
       refreshTokenViaCookie={cookieConfig}
     >
