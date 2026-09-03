@@ -23,9 +23,7 @@ type UserWithFamilies = {
 
 export async function GET() {
   try {
-    const currentSession = await session({
-      logLevel: "debug",
-    });
+    const currentSession = await session();
     if (!currentSession) {
       console.warn("[api/family] no session - request is unauthenticated");
       return Response.json({ error: "Not authenticated" }, { status: 401 });
