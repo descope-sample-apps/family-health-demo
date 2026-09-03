@@ -8,8 +8,7 @@ import { createSdk } from "@descope/nextjs-sdk/server";
 // `token` must be just the raw management key, NOT `projectId:managementKey`. The SDK's httpClient
 // already builds `Authorization: Bearer {projectId}:{token}` from whatever `token` you pass (it
 // prepends its own configured project ID) - passing the project ID again here double-prepends it,
-// producing `projectId:projectId:managementKey`. The server's Authorization parser
-// (common/pkg/common/http/middlewares/projectidhandler.go, ParseAuthorizationHeader) treats 3+
+// producing `projectId:projectId:managementKey`. Descope's Authorization header parser treats 3+
 // colon-separated segments as `projectId:JWT:accessKey`, so our own project ID lands in the JWT slot
 // and the request gets misrouted into JWT/inbound-token validation instead of the management-key
 // ReBAC check - failing with "no scoped permissions" regardless of the key's actual role. Verified

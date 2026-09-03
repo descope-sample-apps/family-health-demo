@@ -2,8 +2,8 @@ import { session, createSdk } from "@descope/nextjs-sdk/server";
 import { mgmtFamilyCall } from "../../lib/mgmtFamily";
 
 // @descope/node-sdk's UserResponse type hasn't been regenerated yet for the family feature, so
-// userFamilies/families/dependent - and, per descope/backend#2161, each family entry's
-// familyScopedAttributes - are missing even though the backend returns them.
+// userFamilies/families/dependent - and each family entry's familyScopedAttributes - are missing
+// even though the API returns them.
 type UserWithFamilies = {
   userId: string;
   loginIds?: string[];
@@ -81,7 +81,7 @@ export async function GET() {
     // 2) Search all users across the caller's families in one shot, using the search API's familyIds
     //    filter - server-side, instead of pulling every project user and filtering here. familyIds
     //    isn't in the node SDK's typed search shape yet, so widen the request.
-    // ponytail: single page, limit 1000 - fine for a demo project's family size
+    // Single page, limit 1000 - fine for a demo project's family size.
     const searchReq = { familyIds: myFamilyIds, limit: 1000 } as unknown as Parameters<
       typeof sdk.management.user.search
     >[0];

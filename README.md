@@ -34,7 +34,7 @@ API - is mocked.
 | Select family (`dcf` claim) | Real - `POST /v1/auth/family/select`, session-token authed via the SDK's `httpClient` |
 | Impersonation (`/api/family/impersonate`, `.../stop`) | Real - Management API. `selectedFamily` is passed through so the impersonated session carries a `dcf` claim |
 | Profile edits: name / phone (`/api/profile`) | Real - `UpdateUserDisplayName` / `UpdateUserPhone` |
-| Profile edit: parentType (`/api/profile`) | Real - a family-scoped custom attribute, set via `PatchUser`'s `familyAssociations` per [descope/backend#2161](https://github.com/descope/backend/pull/2161). No typed SDK method yet, so it's a raw `httpClient.patch("/v1/mgmt/user/patch", ...)`. See that route's comment for why it must round-trip the member's *other* families and their roleNames - `familyAssociations` replaces the full family list, and roleNames have no preserve-if-omitted semantics (only `familyScopedAttributes` does) |
+| Profile edit: parentType (`/api/profile`) | Real - a family-scoped custom attribute, set via `PatchUser`'s `familyAssociations`. No typed SDK method yet, so it's a raw `httpClient.patch("/v1/mgmt/user/patch", ...)`. See that route's comment for why it must round-trip the member's *other* families and their roleNames - `familyAssociations` replaces the full family list, and roleNames have no preserve-if-omitted semantics (only `familyScopedAttributes` does) |
 | Appointments (`/api/appointments`) | **Mocked** - in-memory store, `app/lib/mockStore.ts`. No real appointments backend exists |
 
 The mocked appointments are isolated behind `app/lib/appointmentsApi.ts` (client) and

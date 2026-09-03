@@ -10,7 +10,7 @@ type Sdk = {
   refresh: (token?: string) => Promise<unknown>;
 };
 
-// call an end-user onetime endpoint via the sdk (session-token authed); the sdk auto-persists a
+// call an end-user auth endpoint via the sdk (session-token authed); the sdk auto-persists a
 // JWTResponse, so - unlike impersonate/stop - no explicit sdk.refresh() is needed afterward.
 async function sdkPost(sdk: Sdk, path: string, body: Record<string, unknown>) {
   const res = await sdk.httpClient.post(path, body);
@@ -90,8 +90,8 @@ export type SessionClaims = {
   exp?: number;
   dcf?: string; // selected family
   families?: Record<string, { roles?: string[]; permissions?: string[] }>;
-  act?: { sub?: string; [k: string]: unknown }; // actor (present while impersonating) - onetimeservice's
-  // session generator wraps the impersonator's user id as {sub: "<actorUserId>"} (RFC 8693 "act" claim)
+  act?: { sub?: string; [k: string]: unknown }; // actor (present while impersonating) - Descope wraps
+  // the impersonator's user id as {sub: "<actorUserId>"}, per the RFC 8693 "act" claim
   [k: string]: unknown;
 };
 

@@ -1,9 +1,9 @@
 import { session, createSdk } from "@descope/nextjs-sdk/server";
 
-// Real Management API calls throughout. name/phone are long-standing, general-purpose user-update
-// endpoints (not family-specific) - not in the reference app since it never had an edit feature.
-// parentType is a family-scoped custom attribute (attribute definition created directly on the
-// Descope project), set via PatchUser's familyAssociations - see descope/backend#2161.
+// Real Management API calls throughout. name/phone use the general-purpose user-update endpoints
+// (not family-specific). parentType is a family-scoped custom attribute: the attribute definition
+// lives on the Descope project, and a member's per-family value is set via PatchUser's
+// familyAssociations.
 //
 // `userId` is caller-supplied (not derived from the session) because this is invoked from the family
 // list to edit ANY member's details, not just the caller's own - same trust boundary as the real
@@ -50,9 +50,9 @@ export async function POST(req: Request) {
 
       // PatchUser's familyAssociations replaces the user's FULL family list, and - per family entry -
       // fully replaces roleNames too (only familyScopedAttributes has preserve-if-not-mentioned
-      // semantics; see descope/backend#2161's applyFamilyChanges). So every family the member belongs
-      // to, and that family's current roleNames, must be resent unchanged, or we'd silently drop them
-      // from other families / strip their family roles just by editing one attribute. Fetch fresh
+      // semantics). So every family the member belongs to, and that family's current roleNames, must
+      // be resent unchanged, or we'd silently drop them from other families / strip their family
+      // roles just by editing one attribute. Fetch fresh
       // rather than trusting client-sent data, since it's driving a destructive-if-wrong write.
       const lookup = await sdk.management.user.search({ userIds: [body.userId], limit: 1 });
       if (!lookup.ok) throw new Error(lookup.error?.errorMessage || "Failed to load user");
