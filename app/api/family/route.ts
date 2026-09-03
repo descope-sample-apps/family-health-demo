@@ -1,9 +1,7 @@
 import { session, createSdk } from "@descope/nextjs-sdk/server";
 import { mgmtFamilyCall } from "../../lib/mgmtFamily";
 
-// @descope/node-sdk's UserResponse type hasn't been regenerated yet for the family feature, so
-// userFamilies/families/dependent - and each family entry's familyScopedAttributes - are missing
-// even though the API returns them.
+// The family fields this route reads off a user record.
 type UserWithFamilies = {
   userId: string;
   loginIds?: string[];
@@ -20,6 +18,18 @@ type UserWithFamilies = {
   }[];
   families?: string[];
 };
+
+// Family-scoped custom attribute values can be any JSON type the project's schema allows, so flatten
+// them to strings for display. Objects/arrays are JSON-stringified rather than dropped, so an
+// unexpected attribute type still shows something instead of silently vanishing.
+function toDisplayAttributes(attrs?: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(attrs ?? {})) {
+    if (value === null || value === undefined || value === "") continue;
+    out[key] = typeof value === "object" ? JSON.stringify(value) : String(value);
+  }
+  return out;
+}
 
 export async function GET() {
   try {
@@ -77,8 +87,8 @@ export async function GET() {
     }
 
     // 2) Search all users across the caller's families in one shot, using the search API's familyIds
-    //    filter - server-side, instead of pulling every project user and filtering here. familyIds
-    //    isn't in the node SDK's typed search shape yet, so widen the request.
+    //    filter - server-side, instead of pulling every project user and filtering here. The cast
+    //    below widens the request to carry familyIds.
     // Single page, limit 1000 - fine for a demo project's family size.
     const searchReq = { familyIds: myFamilyIds, limit: 1000 } as unknown as Parameters<
       typeof sdk.management.user.search
@@ -95,8 +105,8 @@ export async function GET() {
 
     // name/picture/phone come straight off the real Descope user record - edits in app/api/profile
     // write through to the same record via the Management API, so no overlay is needed here.
-    // parentType is per-family (a family-scoped custom attribute), so it lives on userFamilies rather
-    // than as a flat field - the same member can have a different parentType in each family.
+    // Family-scoped custom attributes are per-family, so they live on userFamilies rather than as flat
+    // fields - the same member can have different values in each family.
     const members = users.map((u) => ({
       userId: u.userId,
       loginId: u.loginIds?.[0],
@@ -110,10 +120,7 @@ export async function GET() {
       userFamilies: (u.userFamilies ?? []).map((f) => ({
         familyId: f.familyId,
         roleNames: f.roleNames ?? [],
-        parentType:
-          typeof f.familyScopedAttributes?.parentType === "string"
-            ? f.familyScopedAttributes.parentType
-            : undefined,
+        familyScopedAttributes: toDisplayAttributes(f.familyScopedAttributes),
       })),
     }));
 

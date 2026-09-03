@@ -12,7 +12,8 @@ Descope integration is structured the same way as
   selector at the top (by name) if you belong to more than one
 - Click a family member to impersonate them - the main screen then shows (and lets you book)
   *their* appointments. Click your own row to stop impersonating
-- Edit button next to every family member's name to edit their name / phone / parent type
+- Edit button next to every family member's name to edit their name / phone / family-scoped custom
+  attributes
 
 ## Stack
 
@@ -34,7 +35,7 @@ API - is mocked.
 | Select family (`dcf` claim) | Real - `POST /v1/auth/family/select`, session-token authed via the SDK's `httpClient` |
 | Impersonation (`/api/family/impersonate`, `.../stop`) | Real - Management API. `selectedFamily` is passed through so the impersonated session carries a `dcf` claim |
 | Profile edits: name / phone (`/api/profile`) | Real - `UpdateUserDisplayName` / `UpdateUserPhone` |
-| Profile edit: parentType (`/api/profile`) | Real - a family-scoped custom attribute, set via `PatchUser`'s `familyAssociations`. No typed SDK method yet, so it's a raw `httpClient.patch("/v1/mgmt/user/patch", ...)`. See that route's comment for why it must round-trip the member's *other* families and their roleNames - `familyAssociations` replaces the full family list, and roleNames have no preserve-if-omitted semantics (only `familyScopedAttributes` does) |
+| Profile edit: family-scoped custom attributes (`/api/profile`) | Real - set via `PatchUser`'s `familyAssociations`. The app has no hardcoded attribute names: it renders and edits whatever the project defines, so it works against any project's schema. No typed SDK method yet, so it's a raw `httpClient.patch("/v1/mgmt/user/patch", ...)`. See that route's comment for why it must round-trip the member's *other* families and their roleNames - `familyAssociations` replaces the full family list, and roleNames have no preserve-if-omitted semantics (only `familyScopedAttributes` does) |
 | Appointments (`/api/appointments`) | **Mocked** - in-memory store, `app/lib/mockStore.ts`. No real appointments backend exists |
 
 The mocked appointments are isolated behind `app/lib/appointmentsApi.ts` (client) and
@@ -46,7 +47,8 @@ The mocked appointments are isolated behind `app/lib/appointmentsApi.ts` (client
   so impersonation has a valid target - only dependents can be impersonated)
 - The member doing the impersonating needs the family-scoped **Family Impersonate Dependents**
   permission in that family
-- A family-scoped custom attribute named `parentType` for that field to be settable/visible
+- Optionally, one or more family-scoped custom attributes defined on the project - the app shows and
+  edits whatever exists, and works fine with none
 - A management key (used server-side only) with permission to read users and families
 
 ## Setup
@@ -104,8 +106,8 @@ Two things to know before putting this in front of anyone:
   `/api/family/impersonate` and adopts the returned refresh JWT via `sdk.refresh()`; clicking your
   own row stops impersonating. Switching the family dropdown calls the real `SelectFamily` endpoint
   when you're not impersonating
-- `app/components/EditProfileModal.tsx` posts to `/api/profile` to edit name/phone/parentType
-  (parentType is scoped to whichever family is currently selected)
+- `app/components/EditProfileModal.tsx` posts to `/api/profile` to edit name/phone and any
+  family-scoped custom attributes, scoped to whichever family is currently selected
 - `app/components/AppointmentsSection.tsx` fetches `/api/appointments`, scoped to whichever user the
   *current session* belongs to - so it automatically reflects the impersonated user, no extra plumbing
 - `app/lib/avatars.ts` falls back to a generic child or adult avatar when a member has no `picture`
@@ -113,8 +115,6 @@ Two things to know before putting this in front of anyone:
 
 ## Notes
 
-- Family fields (`userFamilies`, `dependent`, `familyScopedAttributes`) are typed locally in the API
-  routes because the SDK's `UserResponse` type doesn't include them yet
 - User search is capped at a single page of 1000 users - fine for a demo tenant
 - `app/components/JwtDebugPanel.tsx` prints the live session and refresh JWTs at the bottom of the
   screen. It is gated to `NODE_ENV === "development"` and never renders in a production build

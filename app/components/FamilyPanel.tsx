@@ -146,7 +146,11 @@ export default function FamilyPanel({
           <ul className="flex flex-col gap-2">
             {visibleMembers.map((m) => {
               const isSelf = m.userId === selfUserId;
-              const parentType = m.userFamilies.find((f) => f.familyId === selectedFamilyId)?.parentType;
+              // Whatever family-scoped custom attributes this member has in the selected family. The
+              // app doesn't know the project's attribute names, so it renders all of them as tags.
+              const familyAttributes = Object.entries(
+                m.userFamilies.find((f) => f.familyId === selectedFamilyId)?.familyScopedAttributes ?? {}
+              );
               // Self is only actionable while impersonating (click to stop); everyone else needs a
               // login ID to impersonate.
               const canAct = isSelf ? isImpersonating : Boolean(m.loginId);
@@ -185,11 +189,15 @@ export default function FamilyPanel({
                           Child
                         </span>
                       )}
-                      {parentType && (
-                        <span className="ml-2 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
-                          {parentType}
+                      {familyAttributes.map(([key, value]) => (
+                        <span
+                          key={key}
+                          title={key}
+                          className="ml-2 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+                        >
+                          {key}: {value}
                         </span>
-                      )}
+                      ))}
                       {m.phone && (
                         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                           {m.phone}

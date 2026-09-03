@@ -7,8 +7,8 @@ export type UpdateProfileInput = {
   userId: string;
   name?: string;
   phone?: string;
-  familyId?: string; // which family parentType applies to
-  parentType?: string;
+  familyId?: string; // which family the attributes below apply to
+  familyScopedAttributes?: Record<string, string>;
 };
 
 export async function updateProfile(input: UpdateProfileInput): Promise<Partial<FamilyMember>> {

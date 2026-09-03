@@ -1,9 +1,9 @@
 import { session, createSdk } from "@descope/nextjs-sdk/server";
 
 // Real Management API calls throughout. name/phone use the general-purpose user-update endpoints
-// (not family-specific). parentType is a family-scoped custom attribute: the attribute definition
-// lives on the Descope project, and a member's per-family value is set via PatchUser's
-// familyAssociations.
+// (not family-specific). Family-scoped custom attributes are per-family values whose names are
+// defined by the Descope project - this app doesn't assume any particular ones - and are set via
+// PatchUser's familyAssociations.
 //
 // `userId` is caller-supplied (not derived from the session) because this is invoked from the family
 // list to edit ANY member's details, not just the caller's own - same trust boundary as the real
@@ -26,8 +26,8 @@ export async function POST(req: Request) {
     userId?: string;
     name?: string;
     phone?: string;
-    familyId?: string; // which family parentType applies to (a member can be in more than one)
-    parentType?: string;
+    familyId?: string; // which family the attributes below apply to (a member can be in >1)
+    familyScopedAttributes?: Record<string, string>;
   };
   if (!body.userId) {
     return Response.json({ error: "userId is required" }, { status: 400 });
@@ -43,9 +43,9 @@ export async function POST(req: Request) {
       const res = await sdk.management.user.updatePhone(body.userId, body.phone, false);
       if (!res.ok) throw new Error(res.error?.errorMessage || "Failed to update phone");
     }
-    if (body.parentType !== undefined) {
+    if (body.familyScopedAttributes !== undefined) {
       if (!body.familyId) {
-        throw new Error("familyId is required to update parentType");
+        throw new Error("familyId is required to update family-scoped attributes");
       }
 
       // PatchUser's familyAssociations replaces the user's FULL family list, and - per family entry -
@@ -66,7 +66,10 @@ export async function POST(req: Request) {
         // are preserved server-side rather than overwritten with what we happen to have on hand here.
         ...(f.familyId === body.familyId
           ? {
-              familyScopedAttributes: { ...(f.familyScopedAttributes ?? {}), parentType: body.parentType },
+              familyScopedAttributes: {
+                ...(f.familyScopedAttributes ?? {}),
+                ...body.familyScopedAttributes,
+              },
             }
           : {}),
       }));
@@ -98,6 +101,6 @@ export async function POST(req: Request) {
     userId: body.userId,
     name: body.name,
     phone: body.phone,
-    parentType: body.parentType,
+    familyScopedAttributes: body.familyScopedAttributes,
   });
 }

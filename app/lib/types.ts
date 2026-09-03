@@ -1,11 +1,14 @@
 // Shared shapes between server route handlers and client components.
 
-// A member's per-family membership - roleNames and parentType (a family-scoped custom attribute) are
-// specific to a given family, not the user overall, since the same user can belong to more than one.
+// A member's per-family membership - roleNames and family-scoped custom attributes are specific to a
+// given family, not the user overall, since the same user can belong to more than one.
 export type MemberFamily = {
   familyId: string;
   roleNames: string[];
-  parentType?: string; // e.g. "Mother", "Father", "Guardian"
+  // Whatever family-scoped custom attributes the project defines, as name -> display value. The app
+  // deliberately doesn't know any attribute names up front: it renders whatever comes back, so it
+  // works against any project's schema.
+  familyScopedAttributes: Record<string, string>;
 };
 
 export type FamilyMember = {
